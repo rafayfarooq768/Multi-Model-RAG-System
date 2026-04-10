@@ -2,18 +2,48 @@ from __future__ import annotations
 
 import os
 import logging
+from uuid import uuid4
 from pathlib import Path
 
 import streamlit as st
 
-from src.config import SEARCH_QUALITY_PRESETS, SUPPORTED_DOC_TYPES, SUPPORTED_EXTENSIONS
+from src.config import (
+    SEARCH_QUALITY_PRESETS,
+    SUPPORTED_DOC_TYPES,
+    SUPPORTED_EXTENSIONS,
+)
 from src.pipeline import LocalRAGPipeline
 
 # Configure logging to avoid cluttering the app
 logging.basicConfig(level=logging.WARNING)
 
 DATA_DIR = Path("data")
-UPLOAD_DIR = DATA_DIR / "uploads"
+SESSION_DATA_DIR = Path(".session_data")
+AUTO_INDEX_STARTUP_FILES = False
+
+
+def get_session_id() -> str:
+    if "session_id" not in st.session_state:
+        st.session_state.session_id = uuid4().hex
+    return st.session_state.session_id
+
+
+def get_session_root() -> Path:
+    root = SESSION_DATA_DIR / get_session_id()
+    root.mkdir(parents=True, exist_ok=True)
+    return root
+
+
+def get_upload_dir() -> Path:
+    upload_dir = get_session_root() / "uploads"
+    upload_dir.mkdir(parents=True, exist_ok=True)
+    return upload_dir
+
+
+def get_chroma_dir() -> Path:
+    chroma_dir = get_session_root() / "chroma_db"
+    chroma_dir.mkdir(parents=True, exist_ok=True)
+    return chroma_dir
 
 
 def get_startup_files() -> list[Path]:
@@ -29,8 +59,6 @@ def get_startup_files() -> list[Path]:
     for path in DATA_DIR.rglob("*"):
         if not path.is_file():
             continue
-        if UPLOAD_DIR in path.parents:
-            continue
         if path.suffix.lower() in SUPPORTED_EXTENSIONS:
             files.append(path)
 
@@ -39,10 +67,14 @@ def get_startup_files() -> list[Path]:
 
 def get_pipeline() -> LocalRAGPipeline:
     if "pipeline" not in st.session_state:
-        pipeline = LocalRAGPipeline(openrouter_api_key=get_openrouter_api_key())
-        startup_files = get_startup_files()
-        if startup_files:
-            pipeline.ingest_paths(startup_files)
+        pipeline = LocalRAGPipeline(
+            openrouter_api_key=get_openrouter_api_key(),
+            persist_directory=get_chroma_dir(),
+        )
+        if AUTO_INDEX_STARTUP_FILES:
+            startup_files = get_startup_files()
+            if startup_files:
+                pipeline.ingest_paths(startup_files)
         st.session_state.pipeline = pipeline
     return st.session_state.pipeline
 
@@ -55,15 +87,14 @@ def get_openrouter_api_key() -> str | None:
 
 
 def save_upload(uploaded_file) -> Path:
-    UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
-    target_path = UPLOAD_DIR / uploaded_file.name
+    target_path = get_upload_dir() / uploaded_file.name
     target_path.write_bytes(uploaded_file.getbuffer())
     return target_path
 
 
 def remove_uploaded_file(source: str) -> bool:
-    """Remove an uploaded file from disk if it exists in data/uploads."""
-    target_path = UPLOAD_DIR / source
+    """Remove an uploaded file from disk if it exists in current user session."""
+    target_path = get_upload_dir() / source
     if target_path.exists() and target_path.is_file():
         target_path.unlink()
         return True

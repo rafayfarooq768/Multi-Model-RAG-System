@@ -11,6 +11,7 @@ from langchain_core.documents import Document
 
 from .chunking import split_documents
 from .config import (
+    DEFAULT_CHROMA_PERSIST_DIR,
     DEFAULT_CHUNK_OVERLAP,
     DEFAULT_CHUNK_SIZE,
     DEFAULT_EMBEDDING_MODEL,
@@ -49,9 +50,10 @@ class LocalRAGPipeline:
         chunk_overlap: int = DEFAULT_CHUNK_OVERLAP,
         top_k: int = DEFAULT_TOP_K,
         openrouter_api_key: str | None = None,
+        persist_directory: str | Path = DEFAULT_CHROMA_PERSIST_DIR,
     ) -> None:
         self.embedder = SentenceTransformerEmbeddingFunction(model_name)
-        self.store = ChromaStore(self.embedder)
+        self.store = ChromaStore(self.embedder, persist_directory=persist_directory)
         self.chunk_size = chunk_size
         self.chunk_overlap = chunk_overlap
         self.top_k = top_k
