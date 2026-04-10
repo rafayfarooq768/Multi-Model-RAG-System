@@ -1,0 +1,7 @@
+MultiModalRAG sample document.
+
+This prototype supports PDF and text ingestion, recursive chunking, sentence-transformer embeddings, and Chroma retrieval.
+
+Phase 2 will add persistence. Phase 3 will add OCR for images. Phase 5 will connect a local LLM.
+
+The current goal is a clean first working system that can answer questions using retrieved document context.
